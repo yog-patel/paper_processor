@@ -9,7 +9,7 @@ GEMINI_API_KEY = "AIzaSyBkIfrdK6-9H-DaqcMQT2lSRXHXzPE0t1Y"
 
 # Gemini API limit
 MAX_API_CALLS_PER_DAY = 800
-BATCH_SIZE = 30  # Safe batch size per run (adjust as needed)
+BATCH_SIZE = 50  # Safe batch size per run (adjust as needed)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
