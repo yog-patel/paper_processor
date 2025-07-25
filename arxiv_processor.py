@@ -438,7 +438,7 @@ def process_paper(arxiv_id: str, gemini_api_key: str) -> Optional[Dict]:
     return result
 
 if __name__ == "__main__":
-    GEMINI_API_KEY = "AIzaSyBkIfrdK6-9H-DaqcMQT2lSRXHXzPE0t1Y"  # Your API key
+    GEMINI_API_KEY = "AIzaSyB9MZbWD2NUBAm92Wqb46jenMg2_GK5tAY"  # Your API key
 
     result = process_paper("2501.18987v1", GEMINI_API_KEY)
 
