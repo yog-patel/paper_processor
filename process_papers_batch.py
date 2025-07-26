@@ -5,7 +5,7 @@ from arxiv_processor import process_paper
 
 SUPABASE_URL = "https://tncpegymtqdgnfkwndca.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuY3BlZ3ltdHFkZ25ma3duZGNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjcxODkxODEsImV4cCI6MjA0Mjc2NTE4MX0.0Ltp_VvJmRQWqFxf9UJHYDwrbiRDRt8aWoFgcY_PPJA"
-GEMINI_API_KEY = "AIzaSyB9MZbWD2NUBAm92Wqb46jenMg2_GK5tAY"
+GEMINI_API_KEY = "AIzaSyBkIfrdK6-9H-DaqcMQT2lSRXHXzPE0t1Y"
 
 # Gemini API limit
 MAX_API_CALLS_PER_DAY = 800
