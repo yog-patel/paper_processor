@@ -82,15 +82,74 @@ class FinalArXivProcessor:
 
         metadata = {"title": "", "authors": [], "abstract": ""}
 
-        # 1. Title extraction
-        title_match = re.search(r'\\title\{([^}]*)\}', content)
-        if title_match:
-            metadata["title"] = self.basic_clean(title_match.group(1))
-        else:
-            metadata["title"] = "Title not found"
+        # Debug: Show first 1000 characters of content
+        print(f"Content preview (first 1000 chars): {content[:1000]}")
 
-        # 2. Raw author blocks (anywhere in document)
-        raw_authors = re.findall(r'\\author\{([^}]*)\}', content, re.DOTALL)
+        # 1. Title extraction - try multiple patterns
+        title_patterns = [
+            r'\\title\{([^}]*)\}',
+            r'\\title\*\{([^}]*)\}',
+            r'\\title\[([^\]]*)\]',
+            r'\\title\s*\{([^}]*)\}'
+        ]
+        
+        title_found = False
+        for pattern in title_patterns:
+            title_match = re.search(pattern, content)
+            if title_match:
+                metadata["title"] = self.basic_clean(title_match.group(1))
+                title_found = True
+                print(f"Found title with pattern: {pattern}")
+                break
+        
+        # Try to extract title from header comments if standard patterns fail
+        if not title_found:
+            # Look for title in the header comments (lines starting with %)
+            lines = content.split('\n')
+            for i, line in enumerate(lines):
+                if line.strip().startswith('%') and 'How to construct' in line:
+                    # Extract the title from the comment line
+                    title_line = line.strip()
+                    # Remove % and clean up
+                    title = title_line.replace('%', '').strip()
+                    if title:
+                        metadata["title"] = self.basic_clean(title)
+                        title_found = True
+                        print(f"Found title in header comment: {title}")
+                        break
+        
+        if not title_found:
+            metadata["title"] = "Title not found"
+            print("No title found with any pattern")
+
+        # 2. Raw author blocks (anywhere in document) - try multiple patterns
+        author_patterns = [
+            r'\\author\{([^}]*)\}',
+            r'\\author\*\{([^}]*)\}',
+            r'\\author\[([^\]]*)\]',
+            r'\\author\s*\{([^}]*)\}'
+        ]
+        
+        raw_authors = []
+        for pattern in author_patterns:
+            raw_authors = re.findall(pattern, content, re.DOTALL)
+            if raw_authors:
+                print(f"Found authors with pattern: {pattern}")
+                break
+        
+        # Try to extract author from header comments if standard patterns fail
+        if not raw_authors:
+            lines = content.split('\n')
+            for i, line in enumerate(lines):
+                if line.strip().startswith('%') and 'Nitin Nitsure' in line:
+                    # Extract the author from the comment line
+                    author_line = line.strip()
+                    # Remove % and clean up
+                    author = author_line.replace('%', '').strip()
+                    if author:
+                        raw_authors = [author]
+                        print(f"Found author in header comment: {author}")
+                        break
 
         # 3. Split and clean each author name
         authors = []
@@ -141,11 +200,94 @@ class FinalArXivProcessor:
         """Find ONLY main sections (\\section level), ignore subsections."""
         print("Finding main sections only...")
 
-        # Only look for main sections, ignore subsections
-        pattern = r'\\section\*?\{([^}]+)\}'
-        matches = list(re.finditer(pattern, content, re.IGNORECASE))
-
-        sections = []
+        # Try multiple section patterns
+        section_patterns = [
+            r'\\section\*?\{([^}]+)\}',
+            r'\\section\*?\[([^\]]+)\]',
+            r'\\section\s*\{([^}]+)\}',
+            r'\\section\*?\s*\{([^}]+)\}'
+        ]
+        
+        matches = []
+        sections = []  # Initialize sections list early
+        
+        for pattern in section_patterns:
+            matches = list(re.finditer(pattern, content, re.IGNORECASE))
+            if matches:
+                print(f"Found sections with pattern: {pattern}")
+                break
+        
+        if not matches:
+            print("No sections found with any pattern")
+            # Debug: show what section-like patterns exist
+            debug_patterns = [
+                r'\\section',
+                r'\\subsection',
+                r'\\chapter',
+                r'\\part',
+                r'\\begin\{theorem\}',
+                r'\\begin\{lemma\}',
+                r'\\begin\{proposition\}',
+                r'\\begin\{corollary\}',
+                r'\\begin\{definition\}',
+                r'\\begin\{proof\}'
+            ]
+            for debug_pattern in debug_patterns:
+                debug_matches = re.findall(debug_pattern, content, re.IGNORECASE)
+                if debug_matches:
+                    print(f"Found {len(debug_matches)} instances of {debug_pattern}")
+            
+            # If no sections found, try to create sections from theorem/lemma blocks
+            theorem_patterns = [
+                r'\\begin\{theorem\}(.*?)\\end\{theorem\}',
+                r'\\begin\{lemma\}(.*?)\\end\{lemma\}',
+                r'\\begin\{proposition\}(.*?)\\end\{proposition\}',
+                r'\\begin\{corollary\}(.*?)\\end\{corollary\}',
+                r'\\begin\{definition\}(.*?)\\end\{definition\}'
+            ]
+            
+            for pattern in theorem_patterns:
+                theorem_matches = re.findall(pattern, content, re.DOTALL)
+                if theorem_matches:
+                    print(f"Found {len(theorem_matches)} theorem-like blocks")
+                    # Create sections from these blocks
+                    for i, theorem_content in enumerate(theorem_matches):
+                        clean_content = self.basic_clean(theorem_content)
+                        word_count = len(clean_content.split())
+                        if word_count >= 30:  # Lower threshold for theorem blocks
+                            section_title = f"Theorem/Lemma {i+1}"
+                            sections.append((section_title, clean_content, word_count))
+                            print(f"Created section from theorem block: {section_title} ({word_count} words)")
+                    break
+            
+            # Try to find \stm commands (custom theorem-like structures)
+            if not sections:
+                stm_pattern = r'\\stm\{([^}]*)\}'
+                stm_matches = re.findall(stm_pattern, content)
+                if stm_matches:
+                    print(f"Found {len(stm_matches)} \\stm commands")
+                    # Find the content between \stm commands
+                    stm_positions = [m.start() for m in re.finditer(stm_pattern, content)]
+                    for i, (pos, title) in enumerate(zip(stm_positions, stm_matches)):
+                        # Get content from this \stm to the next one or end of document
+                        if i + 1 < len(stm_positions):
+                            content_end = stm_positions[i + 1]
+                        else:
+                            # Find end of document
+                            doc_end = content.find('\\end{document}')
+                            content_end = doc_end if doc_end != -1 else len(content)
+                        
+                        # Extract content between \stm and next \stm or end
+                        section_content = content[pos:content_end]
+                        # Remove the \stm command itself
+                        section_content = re.sub(r'\\stm\{[^}]*\}', '', section_content, count=1)
+                        clean_content = self.basic_clean(section_content)
+                        word_count = len(clean_content.split())
+                        
+                        if word_count >= 20:  # Lower threshold for \stm sections
+                            clean_title = self.basic_clean(title)
+                            sections.append((clean_title, clean_content, word_count))
+                            print(f"Created section from \\stm: {clean_title} ({word_count} words)")
         for i, match in enumerate(matches):
             title = self.basic_clean(match.group(1))
 
@@ -246,11 +388,21 @@ Summary:"""
             arxiv_id = re.sub(r'v\d+$', '', arxiv_id.split('/')[-1].replace('.pdf', ''))
             print(f"Downloading {arxiv_id}...")
 
+            # Try the e-print endpoint first
             url = f"https://arxiv.org/e-print/{arxiv_id}"
             temp_dir = Path(tempfile.mkdtemp())
 
-            response = requests.get(url, stream=True, timeout=60)
-            response.raise_for_status()
+            try:
+                response = requests.get(url, stream=True, timeout=60)
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 404:
+                    print(f"404 error: TeX source not available for {arxiv_id}")
+                    print("This paper likely only has PDF available or is not accessible via e-print endpoint")
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    return None
+                else:
+                    raise e
 
             # Save the downloaded content
             download_path = temp_dir / "downloaded_file"
@@ -450,7 +602,7 @@ def process_paper(arxiv_id: str, gemini_api_key: str) -> Optional[Dict]:
 if __name__ == "__main__":
     GEMINI_API_KEY = "AIzaSyBkIfrdK6-9H-DaqcMQT2lSRXHXzPE0t1Y"  # Your API key
 
-    result = process_paper("2501.18987v1", GEMINI_API_KEY)
+    result = process_paper("1412.4600v1", GEMINI_API_KEY)
 
     if result:
         filename = f"{result['arxiv_id']}_final.json"

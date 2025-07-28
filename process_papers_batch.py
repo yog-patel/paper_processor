@@ -46,8 +46,32 @@ def process_papers_batch(papers, batch_type="unprocessed"):
                 processed_today += result.get('api_calls_used', 1)
             else:
                 print(f"Processing failed for {arxiv_id}.")
+                # Mark as processed with a special marker to avoid retrying
+                if batch_type == "unprocessed":
+                    error_result = {
+                        "arxiv_id": arxiv_id,
+                        "title": "Processing Failed",
+                        "authors": [],
+                        "api_calls_used": 0,
+                        "main_sections_processed": 0,
+                        "error": "TeX source not available or download failed"
+                    }
+                    supabase.table("paper").update({"processed_papers_json": error_result}).eq("paper_id", paper["paper_id"]).execute()
+                    print(f"Marked paper {paper['paper_id']} as failed to avoid retrying.")
         except Exception as e:
             print(f"Error processing {arxiv_id}: {e}")
+            # Mark as processed with error to avoid retrying
+            if batch_type == "unprocessed":
+                error_result = {
+                    "arxiv_id": arxiv_id,
+                    "title": "Processing Failed",
+                    "authors": [],
+                    "api_calls_used": 0,
+                    "main_sections_processed": 0,
+                    "error": str(e)
+                }
+                supabase.table("paper").update({"processed_papers_json": error_result}).eq("paper_id", paper["paper_id"]).execute()
+                print(f"Marked paper {paper['paper_id']} as failed due to exception.")
         # Sleep a bit to avoid hammering the API (optional, since arxiv_processor does rate limiting)
         time.sleep(2)
     
@@ -80,19 +104,31 @@ def main():
             try:
                 # Check if the JSON contains api_calls_used field and it's 0
                 if isinstance(paper["processed_papers_json"], dict):
-                    api_calls = paper["processed_papers_json"].get("api_calls_used", 0)
+                    processed_data = paper["processed_papers_json"]
                 else:
                     # If it's stored as a string, try to parse it
                     import json
-                    parsed_json = json.loads(paper["processed_papers_json"])
-                    api_calls = parsed_json.get("api_calls_used", 0)
+                    processed_data = json.loads(paper["processed_papers_json"])
                 
-                if api_calls == 0:
+                api_calls = processed_data.get("api_calls_used", 0)
+                title = processed_data.get("title", "")
+                error = processed_data.get("error", "")
+                
+                # Only reprocess if it has 0 API calls AND is not intentionally marked as failed
+                if api_calls == 0 and title != "Processing Failed" and not error:
                     failed_papers.append(paper)
             except (json.JSONDecodeError, TypeError, AttributeError) as e:
                 print(f"Error parsing JSON for paper {paper['paper_id']}: {e}")
-                # If we can't parse the JSON, consider it failed
-                failed_papers.append(paper)
+                # If we can't parse the JSON, consider it failed (but only if not intentionally marked)
+                if isinstance(paper["processed_papers_json"], dict):
+                    title = paper["processed_papers_json"].get("title", "")
+                    error = paper["processed_papers_json"].get("error", "")
+                else:
+                    title = ""
+                    error = ""
+                
+                if title != "Processing Failed" and not error:
+                    failed_papers.append(paper)
     
     if failed_papers:
         print(f"Found {len(failed_papers)} papers with 0 API calls that need reprocessing.")
