@@ -337,6 +337,12 @@ Summary:"""
                     # Debug: Print first 500 characters
                     print(f"File content preview: {content[:500]}")
 
+                    # Check if this is actually a PDF file
+                    if content.startswith('%PDF-'):
+                        print("Downloaded file is a PDF, not TeX source. Cannot process.")
+                        shutil.rmtree(temp_dir)
+                        return None
+
                     # More flexible TeX validation - look for any TeX patterns
                     tex_markers = [
                         r'\documentclass', r'\begin{document}', r'\title{', r'\author{',
@@ -389,6 +395,10 @@ def process_paper(arxiv_id: str, gemini_api_key: str) -> Optional[Dict]:
 
     content = processor.download_paper(arxiv_id)
     if not content:
+        print(f"Failed to download or process paper {arxiv_id}. This could be because:")
+        print("- The paper only has PDF available (no TeX source)")
+        print("- The paper is not available on arXiv")
+        print("- Network or download issues")
         return None
 
     print(f"Paper downloaded: {len(content)} characters")
