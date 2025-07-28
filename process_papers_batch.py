@@ -9,7 +9,7 @@ GEMINI_API_KEY = "AIzaSyBkIfrdK6-9H-DaqcMQT2lSRXHXzPE0t1Y"
 
 # Gemini API limit
 MAX_API_CALLS_PER_DAY = 800
-BATCH_SIZE = 50  # Safe batch size per run (adjust as needed)
+BATCH_SIZE = 100  # Increased batch size to handle more papers
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -99,6 +99,7 @@ def main():
     
     # Filter papers that have been processed but used 0 API calls
     failed_papers = []
+    
     for paper in all_processed_papers:
         if paper["processed_papers_json"]:
             try:
@@ -114,7 +115,7 @@ def main():
                 title = processed_data.get("title", "")
                 error = processed_data.get("error", "")
                 
-                # Only reprocess if it has 0 API calls AND is not intentionally marked as failed
+                # Reprocess any paper with 0 API calls that is not intentionally marked as failed
                 if api_calls == 0 and title != "Processing Failed" and not error:
                     failed_papers.append(paper)
             except (json.JSONDecodeError, TypeError, AttributeError) as e:
@@ -129,6 +130,8 @@ def main():
                 
                 if title != "Processing Failed" and not error:
                     failed_papers.append(paper)
+    
+    print(f"Found {len(failed_papers)} papers with 0 API calls that need reprocessing")
     
     if failed_papers:
         print(f"Found {len(failed_papers)} papers with 0 API calls that need reprocessing.")
